@@ -11,14 +11,15 @@ import (
 	"gorm.io/gorm"
 )
 
-func ConnectDb() *gorm.DB {
+var db *gorm.DB
+
+func ConnectDb() {
 	dsn := "root:root@tcp(localhost:3306)/user_management"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("Failed to connect Database", err)
 	}
 	db.AutoMigrate(&models.User{})
-	return db
 }
 
 // Hash password securely
@@ -42,8 +43,24 @@ func Register(ctx *gin.Context) {
 		return
 	}
 	// Hash password before saving
+	hashedPass, err := HashPassword(user.Password)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
+		return
+	}
+	user.Password = hashedPass
+
+	if err := db.Create(&user).Error; err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	ctx.JSON(http.StatusCreated, gin.H{
+		"message": "User Registered Successfully",
+		"user":    gin.H{"id": user.ID, "Name": user.Name, "Email": user.Email},
+	})
 }
 
 func main() {
-
+	res := gin.Default()
+	res.Run()
 }
